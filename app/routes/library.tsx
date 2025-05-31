@@ -1,9 +1,9 @@
 import { Music, PlusIcon } from "lucide-react";
-import { href, Link, redirect } from "react-router";
+import { Link, redirect } from "react-router";
 
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
-import { createAuthFetch } from "~/lib/fetch";
+import { SongCard } from "~/components/song-card";
+import { $fetch } from "~/lib/fetch";
 import type { paths } from "~/schema";
 import { destroySession, getSession } from "~/sessions.server";
 import type { Route } from "./+types/library";
@@ -20,8 +20,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   const token = session.get("token");
   if (!session.has("token") || !token) return redirect("/login");
 
-  const $fetch = createAuthFetch(token);
-  const { data: library, error } = await $fetch<SuccessResponse>("/library");
+  const { data: library, error } = await $fetch<SuccessResponse>("/library", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
   if (error) {
     session.flash("error", "Failed to load your library");
@@ -35,6 +36,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function LibraryRoute({ loaderData }: Route.ComponentProps) {
   const { library } = loaderData;
+
+  if (!library) return null;
 
   return (
     <div className="space-y-6 text-white">
@@ -70,59 +73,29 @@ export default function LibraryRoute({ loaderData }: Route.ComponentProps) {
           </Link>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-6">
+        <ul className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 lg:grid-cols-2">
           {/* Add Song Card */}
-          <li>
-            <Link to="/add-song">
-              <Card className="group h-full border-2 border-dashed border-pink-500/50 bg-gray-800/50 transition-all duration-200 hover:scale-105 hover:border-pink-500 hover:bg-gray-800">
-                <CardContent className="flex h-32 flex-col items-center justify-center p-6">
+          <li className="flex h-full flex-col">
+            <Link to="/add-song" className="flex h-full flex-1 flex-col">
+              <div className="group flex h-full flex-col rounded-lg border-2 border-dashed border-pink-500/50 bg-gray-800/50 p-6 transition-all duration-200 hover:scale-105 hover:border-pink-500 hover:bg-gray-800">
+                <div className="flex flex-1 flex-col items-center justify-center">
                   <PlusIcon className="h-8 w-8 text-pink-400 transition-colors group-hover:text-pink-300" />
                   <span className="mt-2 text-sm font-medium text-pink-400 group-hover:text-pink-300">
                     Add New Song
                   </span>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </Link>
           </li>
 
           {/* Song Cards */}
           {library.songs.map((song) => (
-            <li key={song.id}>
-              <Link to={href("/songs/:slug", { slug: song.slug })}>
-                <Card className="group h-full border border-pink-500/30 bg-gray-800/30 transition-all duration-200 hover:scale-105 hover:border-pink-500 hover:bg-gray-800/50">
-                  <CardContent className="flex h-32 flex-col justify-between p-4">
-                    <div>
-                      <h2 className="line-clamp-2 text-sm font-semibold transition-colors group-hover:text-pink-300">
-                        {song.title}
-                      </h2>
-
-                      {song.artists && song.artists.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {song.artists.slice(0, 2).map((artist, index) => (
-                            <span
-                              key={artist.id}
-                              className="text-xs text-gray-400 group-hover:text-gray-300"
-                            >
-                              {artist.name}
-                              {index <
-                                Math.min(song.artists?.length || 0, 2) - 1 &&
-                                ", "}
-                            </span>
-                          ))}
-                          {song.artists.length > 2 && (
-                            <span className="text-xs text-gray-400">
-                              +{song.artists.length - 2} more
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-2 border-t border-gray-700 pt-2">
-                      <Music className="h-4 w-4 text-pink-400 opacity-60" />
-                    </div>
-                  </CardContent>
-                </Card>
+            <li key={song.id} className="flex h-full flex-col">
+              <Link
+                to={`/songs/${song.slug}`}
+                className="flex h-full flex-1 flex-col"
+              >
+                <SongCard song={song} />
               </Link>
             </li>
           ))}
