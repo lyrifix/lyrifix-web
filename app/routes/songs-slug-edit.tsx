@@ -36,7 +36,7 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, request }: Route.LoaderArgs) {
   const { slug } = params;
 
   const [songResponse, artistsResponse] = await Promise.all([
@@ -50,6 +50,14 @@ export async function loader({ params }: Route.LoaderArgs) {
 
   if (!artistsResponse.data || artistsResponse.error)
     throw new Response("No artists data", { status: 500 });
+
+  const session = await getSession(request.headers.get("Cookie"));
+  const user = session.get("user");
+  const userId = user?.id;
+
+  if (songResponse.data.userId !== userId) {
+    throw new Response("Song not found", { status: 404 });
+  }
 
   return {
     song: songResponse.data,
