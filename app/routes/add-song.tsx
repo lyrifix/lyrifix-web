@@ -20,12 +20,19 @@ import type { paths } from "~/schema";
 import { CreateSongSchema } from "~/schemas/song";
 import { getSession } from "~/sessions.server";
 import type { Route } from "./+types/add-song";
+import { type ZodError } from "zod";
+import { Alert, AlertTitle } from "~/components/ui/alert";
+import { AlertCircleIcon } from "lucide-react";
 
 type LoaderSuccessResponse =
   paths["/artists"]["get"]["responses"][200]["content"]["application/json"];
 
-export type ActionSuccessResponse =
+type ActionSuccessResponse =
   paths["/songs"]["post"]["responses"][200]["content"]["application/json"];
+
+type ActionErrorResponse = {
+  error?: ZodError | string;
+};
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Add New Song to Lyrifix" }];
@@ -51,10 +58,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ClientActionArgs) {
   const formData = await request.formData();
-  // console.log("FormData:", Object.fromEntries(formData.entries()));
 
   const submission = parseWithZod(formData, { schema: CreateSongSchema });
-  // console.log("Submission:", submission);
   if (submission.status !== "success") return submission.reply();
 
   const session = await getSession(request.headers.get("Cookie"));
@@ -65,16 +70,21 @@ export async function action({ request }: Route.ClientActionArgs) {
 
   const $fetch = createAuthFetch(token);
   const payload = { ...submission.value, userId };
-  console.log("Payload to API:", payload);
 
-  const { data: song, error } = await $fetch<ActionSuccessResponse>("/songs", {
+  const { data: song, error } = await $fetch<
+    ActionSuccessResponse,
+    ActionErrorResponse
+  >("/songs", {
     method: "POST",
     body: payload,
   });
 
   if (!song || error) {
+    const errorMessage =
+      typeof error.error === "string" ? error.error : "Failed to add song.";
+
     return submission.reply({
-      fieldErrors: { email: ["Failed to add song."] },
+      formErrors: [errorMessage],
     });
   }
 
@@ -134,6 +144,13 @@ export default function AddSongRoute({
             {...getFormProps(form)}
             className="mr-4 ml-4 space-y-4"
           >
+            {form.errors && (
+              <Alert variant="destructive">
+                <AlertCircleIcon />
+                <AlertTitle>{form.errors}</AlertTitle>
+              </Alert>
+            )}
+
             <div className="flex flex-col gap-1">
               <Label htmlFor={fields.title.id}>Song Title *</Label>
               <Input
@@ -177,11 +194,8 @@ export default function AddSongRoute({
               <p className="text-sm text-red-500">{fields.spotifyUrl.errors}</p>
             </div>
 
-            <div>
-              <label
-                className="flex cursor-pointer flex-col items-center"
-                htmlFor={fields.imageUrl.id}
-              >
+            <div className="flex cursor-pointer flex-col items-center">
+              <label htmlFor={fields.imageUrl.id}>
                 <SingleFileUploader
                   value={imageUrl}
                   onChange={setImageUrl}
@@ -195,6 +209,7 @@ export default function AddSongRoute({
                   className="hidden"
                 />
               </label>
+              <p className="text-sm text-red-500">{fields.imageUrl.errors}</p>
             </div>
 
             <div>
